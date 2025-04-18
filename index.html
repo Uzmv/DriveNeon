@@ -5,213 +5,183 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Neon Drive</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
+      background-color: #000;
       overflow: hidden;
       font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(#0f0f0f, #1c1c1c);
-      color: white;
     }
-
-    #game {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: url('https://i.ibb.co/X2qZfsf/road-texture.jpg') repeat-y;
+      background-size: cover;
     }
-
-    .road {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: repeating-linear-gradient(
-        to bottom,
-        #111 0px,
-        #111 40px,
-        #222 40px,
-        #222 80px
-      );
-      animation: scroll 1s linear infinite;
-      z-index: 0;
-    }
-
-    @keyframes scroll {
-      0% { background-position-y: 0; }
-      100% { background-position-y: 80px; }
-    }
-
-    .car {
-      position: absolute;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 50px;
-      height: 100px;
-      background: #00ffcc;
-      border-radius: 8px;
-      z-index: 2;
-    }
-
-    .obstacle {
-      position: absolute;
-      width: 50px;
-      height: 100px;
-      background: crimson;
-      border-radius: 8px;
-      top: -120px;
-      z-index: 1;
-    }
-
-    #score {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      font-size: 1.2rem;
-      z-index: 3;
-    }
-
-    #startScreen, #gameOverScreen {
+    #menu {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
+      right: 0;
+      bottom: 0;
+      background: #000;
+      color: #0ff;
       display: flex;
-      align-items: center;
-      justify-content: center;
       flex-direction: column;
-      z-index: 4;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
     }
-
-    button {
-      margin-top: 20px;
-      padding: 0.6rem 1.2rem;
-      font-size: 1rem;
-      background: #00ff99;
+    #menu button {
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+      background: #0ff;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      transition: 0.3s ease;
+      margin-top: 1rem;
     }
-
-    button:hover {
-      background: #00ffaa;
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 1.2rem;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <div id="game">
-    <div class="road"></div>
-    <div class="car" id="car"></div>
-    <div id="score">Score: 0</div>
+<div id="menu">
+  <h1>🚗 Neon Drive</h1>
+  <p>Use WASD or arrow keys to move</p>
+  <p>Tap to control on mobile</p>
+  <p>High Score: <span id="best-score">0</span></p>
+  <button onclick="startGame()">Start Game</button>
+</div>
+<div id="score">Score: 0</div>
+<canvas id="gameCanvas" width="320" height="480"></canvas>
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
 
-    <div id="startScreen">
-      <h1>🚗 NEON DRIVE</h1>
-      <p>Use ← → keys to dodge cars</p>
-      <button onclick="startGame()">Start</button>
-    </div>
+  let carImg = new Image();
+  carImg.src = "https://i.ibb.co/vzXNrT6/car.png";
 
-    <div id="gameOverScreen" style="display: none;">
-      <h1>💥 Game Over!</h1>
-      <p id="finalScore"></p>
-      <button onclick="startGame()">Restart</button>
-    </div>
-  </div>
+  let roadImg = new Image();
+  roadImg.src = "https://i.ibb.co/X2qZfsf/road-texture.jpg";
 
-  <script>
-    const car = document.getElementById("car");
-    const game = document.getElementById("game");
-    const scoreDisplay = document.getElementById("score");
-    const startScreen = document.getElementById("startScreen");
-    const gameOverScreen = document.getElementById("gameOverScreen");
-    const finalScore = document.getElementById("finalScore");
+  let keys = {};
+  let touchX = null;
 
-    let carX = window.innerWidth / 2 - 25;
-    let obstacles = [];
-    let score = 0;
-    let playing = false;
-    let gameInterval;
+  let player = { x: 130, y: 400, width: 50, height: 80 };
+  let enemies = [];
+  let speed = 2;
+  let spawnRate = 60;
+  let frame = 0;
+  let score = 0;
+  let highScore = localStorage.getItem("highScore") || 0;
+  let playing = false;
 
-    document.addEventListener("keydown", e => {
-      if (!playing) return;
-      if (e.key === "ArrowLeft") {
-        carX -= 40;
-        if (carX < 0) carX = 0;
-      } else if (e.key === "ArrowRight") {
-        carX += 40;
-        if (carX > window.innerWidth - 50) carX = window.innerWidth - 50;
-      }
-      car.style.left = `${carX}px`;
+  document.getElementById("best-score").innerText = highScore;
+
+  function startGame() {
+    document.getElementById("menu").style.display = "none";
+    enemies = [];
+    score = 0;
+    speed = 2;
+    frame = 0;
+    playing = true;
+    loop();
+  }
+
+  function resetGame() {
+    playing = false;
+    localStorage.setItem("highScore", Math.max(score, highScore));
+    document.getElementById("best-score").innerText = Math.max(score, highScore);
+    document.getElementById("menu").style.display = "flex";
+  }
+
+  function drawPlayer() {
+    ctx.drawImage(carImg, player.x, player.y, player.width, player.height);
+  }
+
+  function drawEnemies() {
+    ctx.fillStyle = "#f00";
+    enemies.forEach(e => {
+      ctx.fillRect(e.x, e.y, e.width, e.height);
     });
+  }
 
-    function startGame() {
-      playing = true;
-      score = 0;
-      carX = window.innerWidth / 2 - 25;
-      car.style.left = `${carX}px`;
-      startScreen.style.display = "none";
-      gameOverScreen.style.display = "none";
-      obstacles.forEach(obs => obs.remove());
-      obstacles = [];
-
-      gameInterval = setInterval(() => {
-        spawnObstacle();
-        moveObstacles();
-        updateScore();
-      }, 1000 / 60);
+  function updateEnemies() {
+    if (frame % spawnRate === 0) {
+      let lane = Math.floor(Math.random() * 3);
+      enemies.push({ x: lane * 100 + 35, y: -80, width: 50, height: 80 });
     }
 
-    function endGame() {
-      playing = false;
-      clearInterval(gameInterval);
-      finalScore.textContent = `Your score: ${Math.floor(score)}`;
-      gameOverScreen.style.display = "flex";
-    }
+    enemies.forEach(e => e.y += speed);
+    enemies = enemies.filter(e => e.y < canvas.height);
 
-    function updateScore() {
-      score += 0.1;
-      scoreDisplay.textContent = `Score: ${Math.floor(score)}`;
-    }
-
-    function spawnObstacle() {
-      if (Math.random() < 0.03) {
-        const obs = document.createElement("div");
-        obs.classList.add("obstacle");
-        obs.style.left = `${Math.floor(Math.random() * (window.innerWidth - 50))}px`;
-        game.appendChild(obs);
-        obstacles.push(obs);
+    for (let e of enemies) {
+      if (
+        e.x < player.x + player.width &&
+        e.x + e.width > player.x &&
+        e.y < player.y + player.height &&
+        e.y + e.height > player.y
+      ) {
+        resetGame();
       }
     }
+  }
 
-    function moveObstacles() {
-      obstacles.forEach((obs, index) => {
-        const top = parseInt(obs.style.top || "-120px");
-        obs.style.top = `${top + 5}px`;
+  function update() {
+    if (keys["ArrowLeft"] || keys["a"]) player.x -= 5;
+    if (keys["ArrowRight"] || keys["d"]) player.x += 5;
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
 
-        if (top > window.innerHeight) {
-          obs.remove();
-          obstacles.splice(index, 1);
-        }
-
-        // Collision
-        const obsRect = obs.getBoundingClientRect();
-        const carRect = car.getBoundingClientRect();
-        if (
-          obsRect.top < carRect.bottom &&
-          obsRect.bottom > carRect.top &&
-          obsRect.left < carRect.right &&
-          obsRect.right > carRect.left
-        ) {
-          endGame();
-        }
-      });
+    if (touchX !== null) {
+      player.x = touchX - player.width / 2;
     }
-  </script>
+
+    score++;
+    if (score % 300 === 0) {
+      speed += 0.5;
+      spawnRate = Math.max(20, spawnRate - 5);
+    }
+    document.getElementById("score").innerText = `Score: ${score}`;
+  }
+
+  function drawBackground() {
+    ctx.drawImage(roadImg, 0, frame % canvas.height - canvas.height, canvas.width, canvas.height);
+    ctx.drawImage(roadImg, 0, frame % canvas.height, canvas.width, canvas.height);
+  }
+
+  function loop() {
+    if (!playing) return;
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+    update();
+    drawPlayer();
+    updateEnemies();
+    drawEnemies();
+    requestAnimationFrame(loop);
+  }
+
+  document.addEventListener("keydown", (e) => (keys[e.key] = true));
+  document.addEventListener("keyup", (e) => (keys[e.key] = false));
+
+  canvas.addEventListener("touchstart", (e) => {
+    let rect = canvas.getBoundingClientRect();
+    touchX = e.touches[0].clientX - rect.left;
+  });
+  canvas.addEventListener("touchmove", (e) => {
+    let rect = canvas.getBoundingClientRect();
+    touchX = e.touches[0].clientX - rect.left;
+  });
+  canvas.addEventListener("touchend", () => {
+    touchX = null;
+  });
+</script>
 </body>
 </html>
