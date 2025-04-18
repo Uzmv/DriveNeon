@@ -1,0 +1,37 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #000;
+  font-family: 'Segoe UI', sans-serif;
+  color: white;
+  text-align: center;
+  overflow: hidden;
+}
+
+#menu {
+  position: absolute;
+  top: 40%;
+  width: 100%;
+  z-index: 2;
+}
+
+#start-btn {
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  background: #00ff99;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+  margin: 0 auto;
+  background: url('./assets/road.jpg') repeat-y center/cover;
+  width: 100vw;
+  height: 100vh;
+}
